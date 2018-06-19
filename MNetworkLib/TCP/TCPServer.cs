@@ -1,0 +1,410 @@
+﻿using MNetworkLib.Common;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using System.Net.Security;
+using System.Net.Sockets;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
+using System.Text;
+using System.Threading;
+
+namespace MNetworkLib.TCP {
+
+    /// <summary>
+    /// Multithreaded TCP Server
+    /// </summary>
+    public class TCPServer : TCPBase {
+
+        /// <summary>
+        /// Max Package length, default 100MB
+        /// </summary>
+        public static int MaxPackageLength { get; set; } = 107374182;
+
+        /// <summary>
+        /// List of all clients currently connected to the server
+        /// </summary>
+        public List<TCPServerClient> ClientsList { get; protected set; } = new List<TCPServerClient>();
+
+        /// <summary>
+        /// Backlog to use, only change before start server
+        /// </summary>
+        public int Backlog { get; set; } = 500;
+
+        /// <summary>
+        /// Size of the uid of a client
+        /// </summary>
+        public uint UIDLength { get; set; } = 12;
+
+        /// <summary>
+        /// Whether clients need to make a initial handshake
+        /// </summary>
+        public bool RequireHandshake { get; set; } = true;
+
+        /// <summary>
+        /// Is logging enabled
+        /// </summary>
+        public bool Logging { get; set; } = true;
+
+        /// <summary>
+        /// Dictionary containing all clients identified by their uid
+        /// </summary>
+        public Dictionary<string, TCPServerClient> ClientsDict { get; protected set; } = new Dictionary<string, TCPServerClient>();
+
+        /// <summary>
+        /// Message Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="message"></param>
+        public delegate void MessageEventHandler(TCPServerClient client, TCPMessage message);
+
+        /// <summary>
+        /// Message Event, called if a client sent a message
+        /// </summary>
+        public event MessageEventHandler OnMessage;
+
+        /// <summary>
+        /// Connected Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        public delegate void ConnectedEventHandler(TCPServerClient client);
+
+        /// <summary>
+        /// Connected Event, called if a new client is successfully connected
+        /// </summary>
+        public event ConnectedEventHandler OnConnected;
+
+        /// <summary>
+        /// Disconnected Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        public delegate void DisconnectedEventHandler(TCPServerClient client);
+
+        /// <summary>
+        /// Disconnected Event, called if a client is disconnected
+        /// </summary>
+        public event DisconnectedEventHandler OnDisconnected;
+
+        /// <summary>
+        /// No Handshaked Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        public delegate void NoHandshakeEventHandler(TCPServerClient client);
+
+        /// <summary>
+        /// No Handshake Event, called if client fails to provide correct init package
+        /// </summary>
+        public NoHandshakeEventHandler OnNoHandshake;
+
+        /// <summary>
+        /// Timeout Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        public delegate void TimeoutEventHandler(TCPServerClient client);
+
+        /// <summary>
+        /// Timeout Event, called if client is timed out
+        /// </summary>
+        public TimeoutEventHandler OnTimeout;
+
+        /// <summary>
+        /// Kick Event Handler
+        /// </summary>
+        /// <param name="client"></param>
+        public delegate void KickEventHandler(TCPServerClient client);
+
+        /// <summary>
+        /// Kick Event, called if client was kicked
+        /// </summary>
+        public KickEventHandler OnKick;
+
+        /// <summary>
+        /// Default constructor
+        /// </summary>
+        /// <param name="port"></param>
+        /// <param name="ssl"></param>
+        public TCPServer(ushort port = 27789, X509Certificate2 ssl = null, IPAddress address = null) {
+
+            if (Logging)
+                Logger.Write("REGION", "TCP Server Constructor");
+
+            SSL = ssl;
+            Port = port;
+
+            if(Logging) {
+                Logger.Write("INIT", "Setting Port: " + Port);
+                Logger.Write("INIT", "Setting SSL: " + SSL);
+            }
+
+            if(address == null) {
+                Address = Dns.GetHostEntry(Dns.GetHostName()).AddressList[1];
+            } else {
+                Address = address;
+            }
+
+            if(Logging) {
+                Logger.Write("INIT", "Using Address: " + Enum.GetName(typeof(AddressFamily), Address.AddressFamily) + "//" + Address.ToString());
+            }
+
+            Socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
+            Socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
+            Socket.Bind(new IPEndPoint(Address, Port));
+            
+            Running = false;
+            ListenThread = new Thread(Listen);
+
+        }
+
+        /// <summary>
+        /// Start the server
+        /// </summary>
+        /// <returns></returns>
+        public bool Start() {
+
+            if(Logging) {
+                Logger.Write("REGION", "Method [Start]");
+            }
+
+            if(!ListenThread.IsAlive && !Running) {
+
+                if(Logging) {
+                    Logger.Write("SUCCESS", "Starting server");
+                }
+
+                Running = true;
+
+                ListenThread.Start();
+                return true;
+
+            }
+
+            if (Logging) {
+                Logger.Write("FAILED", "Starting server");
+            }
+
+            return false;
+            
+        }
+
+        /// <summary>
+        /// Stop the server
+        /// </summary>
+        public void Stop() {
+
+            if (Logging) {
+                Logger.Write("REGION", "Method [Stop]");
+            }
+
+            if (Logging) {
+                Logger.Write("INFO", "Stopping server");
+            }
+
+            Running = false;
+
+        }
+
+        /// <summary>
+        /// Removes a client from the server
+        /// </summary>
+        /// <param name="client"></param>
+        /// <param name="type"></param>
+        public void RemoveClient(TCPServerClient client, TCPDisconnectType type = TCPDisconnectType.Disconnect) {
+
+            if (Logging) {
+                Logger.Write("REGION", "Method [RemoveClient]");
+            }
+
+            if (type == TCPDisconnectType.NoHandshake) {
+
+                if (Logging) {
+                    Logger.Write("INFO", "Client no handshake: " + client.UID);
+                }
+                OnNoHandshake?.Invoke(client);
+
+            } else if(type == TCPDisconnectType.Disconnect) {
+
+                if (Logging) {
+                    Logger.Write("INFO", "Client disconnect: " + client.UID);
+                }
+                OnDisconnected?.Invoke(client);
+
+            } else if(type == TCPDisconnectType.Timeout) {
+
+                if (Logging) {
+                    Logger.Write("INFO", "Client timeout: " + client.UID);
+                }
+                OnTimeout?.Invoke(client);
+
+            } else if(type == TCPDisconnectType.Kick) {
+
+                if (Logging) {
+                    Logger.Write("INFO", "Client kick: " + client.UID);
+                }
+                OnKick?.Invoke(client);
+
+            }
+
+            lock (ClientsDict) ClientsDict.Remove(client.UID);
+            lock (ClientsList) {
+
+                for(int e = ClientsList.Count - 1; e >= 0; e--) {
+
+                    if(ClientsList[e].UID == client.UID) {
+                        if (Logging) {
+                            Logger.Write("INFO", "Client found in ClientsList: " + client.UID);
+                        }
+                        ClientsList.RemoveAt(e);
+                        break;
+                    }
+
+                }
+
+            }
+
+            try {
+
+                client.Socket.Shutdown(SocketShutdown.Both);
+                client.Socket.Close();
+
+            } catch(Exception e) {
+
+                if (Logging) {
+                    Logger.Write("FAILED", "Socket shutdown/close", e);
+                }
+
+            }
+
+        }
+
+        /// <summary>
+        /// Listen for new connections
+        /// </summary>
+        protected void Listen() {
+
+            if (Logging) {
+                Logger.Write("REGION", "Method [Listen]");
+            }
+
+            Socket.Listen(Backlog);
+
+            if (Logging) {
+                Logger.Write("INFO", "Start listening for clients");
+            }
+
+            while (Running) {
+
+                Socket socket = Socket.Accept();
+
+                if (Logging) {
+                    Logger.Write("INFO", "New socket connected");
+                }
+
+                TCPServerClient client = new TCPServerClient(
+                    socket, RandomGen.GenRandomUID(ClientsDict, UIDLength));
+
+                Thread clientThread = new Thread(() => ListenClient(client));
+                client.Thread = clientThread;
+
+                clientThread.Start();
+
+                if (Logging) {
+                    Logger.Write("INFO", "Created client and started thread");
+                }
+
+            }
+
+        }
+
+        /// <summary>
+        /// Listen for new messages of individual clients
+        /// </summary>
+        /// <param name="client"></param>
+        protected void ListenClient(TCPServerClient client) {
+
+            if (Logging) {
+                Logger.Write("REGION", "Method [ListenClient]");
+            }
+
+            using (Stream ns = GetStream(client)) {
+
+                client.Stream = ns;
+
+                client.Writer = new TCPWriter(ns);
+                client.Reader = new TCPReader(ns);
+
+                if (Logging) {
+                    Logger.Write("INFO", "Created stream, writer and reader for client: " + client.UID);
+                }
+
+                lock (ClientsList) ClientsList.Add(client);
+                lock(ClientsDict) ClientsDict.Add(client.UID, client);
+                OnConnected?.Invoke(client);
+
+                if (RequireHandshake) {
+
+                    TCPMessage message = client.Reader.Read(client);
+
+                    if (message.Code != TCPMessageCode.Init
+                        || message.Content.Length > 4) {
+                        RemoveClient(client, TCPDisconnectType.NoHandshake);
+                        return;
+                    }
+
+                    if (Logging) {
+                        Logger.Write("SUCCESS", "Handshake: " + client.UID);
+                    }
+
+                }
+
+                while (Running && ClientsDict.ContainsKey(client.UID)) {
+
+                    TCPMessage message = client.Reader.Read(client);
+
+                    if (Logging) {
+                        Logger.Write("INFO", "New message " + Enum.GetName(typeof(TCPMessageCode), message.Code) + " from user: " + client.UID);
+                    }
+
+                    OnMessage?.Invoke(client, message);
+
+                }
+
+            }
+
+        }
+
+        /// <summary>
+        /// Get appropiate stream of socket
+        /// </summary>
+        /// <param name="client"></param>
+        /// <returns></returns>
+        protected Stream GetStream(TCPServerClient client) {
+
+            Stream stream = new NetworkStream(client.Socket);
+
+            if (SSL == null) {
+
+                return stream;
+
+            }
+
+            try {
+
+                SslStream sslStream = new SslStream(stream, false);
+                var task = sslStream.AuthenticateAsServerAsync(SSL, false, SSLProtocol, true);
+                task.Start();
+                task.Wait();
+
+                return sslStream;
+
+            } catch (Exception e) {
+
+                return null;
+
+            }
+
+        }
+
+    }
+
+}
