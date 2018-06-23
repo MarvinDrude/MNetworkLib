@@ -161,7 +161,17 @@ namespace MNetworkLib.TCP {
                 while (Running) {
 
                     TCPMessage message = Reader.Read(Socket);
-                    OnMessage?.Invoke(message);
+
+                    if (message.Code == TCPMessageCode.Init) {
+                        if (Logging) {
+                            Logger.Write("SUCCESS", "Successful handshake");
+                        }
+                        OnHandshake?.Invoke();
+                    } else if (message.Code == TCPMessageCode.Message) {
+
+                        OnMessage?.Invoke(message);
+
+                    }
 
                 }
 
@@ -174,14 +184,7 @@ namespace MNetworkLib.TCP {
         protected void InitHandlers() {
 
             OnMessage += (message) => {
-
-                if (message.Code == TCPMessageCode.Init) {
-                    if (Logging) {
-                        Logger.Write("SUCCESS", "Successful handshake");
-                    }
-                    OnHandshake?.Invoke();
-                }
-
+                
             };
 
         }

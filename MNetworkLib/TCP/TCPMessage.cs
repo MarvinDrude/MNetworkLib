@@ -27,7 +27,7 @@ namespace MNetworkLib.TCP {
         /// <summary>
         /// Code of the message
         /// </summary>
-        public TCPMessageCode Code { get; set; }
+        public TCPMessageCode Code { get; set; } = TCPMessageCode.Message;
 
         /// <summary>
         /// Get string of content byte array utf8

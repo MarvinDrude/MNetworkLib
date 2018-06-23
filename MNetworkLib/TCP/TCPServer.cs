@@ -370,7 +370,8 @@ namespace MNetworkLib.TCP {
                         Logger.Write("INFO", "New message " + Enum.GetName(typeof(TCPMessageCode), message.Code) + " from user: " + client.UID);
                     }
 
-                    OnMessage?.Invoke(client, message);
+                    if(message.Code == TCPMessageCode.Message)
+                        OnMessage?.Invoke(client, message);
 
                 }
 
