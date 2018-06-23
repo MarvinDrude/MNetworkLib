@@ -54,6 +54,16 @@ namespace MNetworkLib.TCP {
 
         }
 
+        /// <summary>
+        /// Sends message to the client
+        /// </summary>
+        /// <param name="message"></param>
+        public void Send(TCPMessage message) {
+
+            Writer.Write(message);
+
+        }
+
     }
 
 }

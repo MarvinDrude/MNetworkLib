@@ -31,6 +31,59 @@ namespace MNetworkLib.TCP {
         /// </summary>
         /// <param name="client"></param>
         /// <returns></returns>
+        public TCPMessage Read(Socket socket) {
+
+            byte first;
+
+            try {
+
+                first = (byte)Stream.ReadByte();
+
+            } catch (Exception e) {
+
+                return null;
+
+            }
+
+            if (!IsClientConnected(socket)) {
+                return null;
+            }
+
+            byte second = (byte)Stream.ReadByte();
+            uint len = ReadLength(second);
+
+            if (len != 0) {
+
+                // solve encoded bytes xor
+
+                byte[] key = TCPReaderWriter.Read(Stream, 4);
+                byte[] encoded = TCPReaderWriter.Read(Stream, len);
+                byte[] decoded = new byte[len];
+
+                for (int e = 0; e < encoded.Length; e++) {
+
+                    decoded[e] = (byte)(encoded[e] ^ key[e % 4]);
+
+                }
+
+                return new TCPMessage() {
+                    Client = null,
+                    Code = (TCPMessageCode)first,
+                    Content = decoded,
+                    Sent = DateTime.Now
+                };
+
+            }
+
+            return null;
+
+        }
+
+        /// <summary>
+        /// Read tcp message off the stream
+        /// </summary>
+        /// <param name="client"></param>
+        /// <returns></returns>
         public TCPMessage Read(TCPServerClient client) {
 
             byte first;
@@ -119,9 +172,20 @@ namespace MNetworkLib.TCP {
         /// <returns></returns>
         public static bool IsClientConnected(TCPServerClient client) {
 
+            return IsClientConnected(client.Socket);
+
+        }
+
+        /// <summary>
+        /// Check if client is still connected
+        /// </summary>
+        /// <param name="client"></param>
+        /// <returns></returns>
+        public static bool IsClientConnected(Socket socket) {
+
             try {
 
-                return !(client.Socket.Poll(1, SelectMode.SelectRead) && client.Socket.Available == 0);
+                return !(socket.Poll(1, SelectMode.SelectRead) && socket.Available == 0);
 
             } catch (Exception e) {
 

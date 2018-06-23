@@ -11,6 +11,11 @@ namespace MNetworkLib.Common {
     public static class Logger {
 
         /// <summary>
+        /// Object to lock console write operation
+        /// </summary>
+        private static readonly object ConsoleWriteLock = new object();
+
+        /// <summary>
         /// Log Event Handler
         /// </summary>
         /// <param name="time"></param>
@@ -47,27 +52,31 @@ namespace MNetworkLib.Common {
 
             OnLog += (time, cat, mes) => {
 
-                string message = "[" + time.ToString() + "]";
-                Console.ForegroundColor = ConsoleColor.DarkYellow;
-                Console.Write(message);
+                lock(ConsoleWriteLock) {
 
-                message = "[" + cat + "]";
-                
-                if(cat == "SUCCESS") {
-                    Console.ForegroundColor = ConsoleColor.Green;
-                } else if (cat == "FAILED") {
-                    Console.ForegroundColor = ConsoleColor.DarkRed;
-                } else if(cat == "INFO" || cat == "INIT") {
-                    Console.ForegroundColor = ConsoleColor.DarkBlue;
-                } else if (cat == "REGION") {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    string message = "[" + time.ToString() + "]";
+                    Console.ForegroundColor = ConsoleColor.DarkYellow;
+                    Console.Write(message);
+
+                    message = "[" + cat + "]";
+
+                    if (cat == "SUCCESS") {
+                        Console.ForegroundColor = ConsoleColor.Green;
+                    } else if (cat == "FAILED") {
+                        Console.ForegroundColor = ConsoleColor.DarkRed;
+                    } else if (cat == "INFO" || cat == "INIT") {
+                        Console.ForegroundColor = ConsoleColor.DarkBlue;
+                    } else if (cat == "REGION") {
+                        Console.ForegroundColor = ConsoleColor.Cyan;
+                    }
+                    Console.Write(message);
+
+                    message = " " + mes;
+                    Console.ForegroundColor = ConsoleColor.White;
+                    Console.Write(message);
+                    Console.WriteLine();
+
                 }
-                Console.Write(message);
-
-                message = " " + mes;
-                Console.ForegroundColor = ConsoleColor.White;
-                Console.Write(message);
-                Console.WriteLine();
 
             };
 

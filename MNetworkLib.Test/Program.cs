@@ -17,6 +17,9 @@ namespace MNetworkLib.Test {
             TCPServer server = new TCPServer();
             server.Start();
 
+            TCPClient client = new TCPClient("192.168.2.113", logging: false);
+            client.Connect();
+
         }
 
     }

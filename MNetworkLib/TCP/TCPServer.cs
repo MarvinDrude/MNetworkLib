@@ -346,7 +346,7 @@ namespace MNetworkLib.TCP {
                     TCPMessage message = client.Reader.Read(client);
 
                     if (message.Code != TCPMessageCode.Init
-                        || message.Content.Length > 4) {
+                        || message.Content.Length > 10) {
                         RemoveClient(client, TCPDisconnectType.NoHandshake);
                         return;
                     }
@@ -354,6 +354,11 @@ namespace MNetworkLib.TCP {
                     if (Logging) {
                         Logger.Write("SUCCESS", "Handshake: " + client.UID);
                     }
+
+                    client.Send(new TCPMessage() {
+                        Code = TCPMessageCode.Init,
+                        Content = new byte[] { 0, 1, 0 }
+                    });
 
                 }
 

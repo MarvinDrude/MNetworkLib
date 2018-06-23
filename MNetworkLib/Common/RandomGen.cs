@@ -1,4 +1,5 @@
-﻿using System;
+﻿using MNetworkLib.TCP;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -34,7 +35,7 @@ namespace MNetworkLib.Common {
 
                 result = "";
 
-                for(uint e = len - 1; e >= 0; e--) {
+                for(int e = (int)len - 1; e >= 0; e--) {
 
                     result += RandomUIDPool[Random.Next(0, RandomUIDPool.Length)];
 
