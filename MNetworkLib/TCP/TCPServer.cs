@@ -48,6 +48,21 @@ namespace MNetworkLib.TCP {
         public bool Logging { get; set; } = true;
 
         /// <summary>
+        /// Thread to handle management such as kick clients with no handshake
+        /// </summary>
+        public Thread ManagementThread { get; private set; }
+
+        /// <summary>
+        /// Management sleep time in ms
+        /// </summary>
+        public int ManagementSleep { get; set; } = 20000;
+
+        /// <summary>
+        /// Time span until clients are kicked without handshake
+        /// </summary>
+        public TimeSpan HandshakeTimeout { get; set; } = new TimeSpan(0, 0, 40);
+
+        /// <summary>
         /// Dictionary containing all clients identified by their uid
         /// </summary>
         public Dictionary<string, TCPServerClient> ClientsDict { get; protected set; } = new Dictionary<string, TCPServerClient>();
@@ -153,7 +168,8 @@ namespace MNetworkLib.TCP {
             
             Running = false;
             ListenThread = new Thread(Listen);
-
+            ManagementThread = new Thread(Management);
+            
         }
 
         /// <summary>
@@ -175,6 +191,7 @@ namespace MNetworkLib.TCP {
                 Running = true;
 
                 ListenThread.Start();
+                ManagementThread.Start();
                 return true;
 
             }
@@ -278,6 +295,37 @@ namespace MNetworkLib.TCP {
         }
 
         /// <summary>
+        /// Management to handle automated kicks etc
+        /// </summary>
+        protected void Management() {
+
+            while(Running) {
+
+                Thread.Sleep(ManagementSleep);
+
+                lock (ClientsList) {
+                    lock (ClientsDict) {
+
+                        for (int e = ClientsList.Count - 1; e >= 0; e--) {
+
+                            TCPServerClient c = ClientsList[e];
+
+                            if((DateTime.Now - c.Joined) > HandshakeTimeout
+                                && RequireHandshake && !c.DoneHandshake) {
+
+                                RemoveClient(c, TCPDisconnectType.NoHandshake);
+
+                            }
+
+                        }
+                    }
+                }
+
+            }
+
+        }
+
+        /// <summary>
         /// Listen for new connections
         /// </summary>
         protected void Listen() {
@@ -302,6 +350,8 @@ namespace MNetworkLib.TCP {
 
                 TCPServerClient client = new TCPServerClient(
                     socket, RandomGen.GenRandomUID(ClientsDict, UIDLength));
+
+                client.Joined = DateTime.Now;
 
                 Thread clientThread = new Thread(() => ListenClient(client));
                 client.Thread = clientThread;
@@ -355,6 +405,8 @@ namespace MNetworkLib.TCP {
                         Logger.Write("SUCCESS", "Handshake: " + client.UID);
                     }
 
+                    client.DoneHandshake = true;
+
                     client.Send(new TCPMessage() {
                         Code = TCPMessageCode.Init,
                         Content = new byte[] { 0, 1, 0 }
@@ -365,6 +417,10 @@ namespace MNetworkLib.TCP {
                 while (Running && ClientsDict.ContainsKey(client.UID)) {
 
                     TCPMessage message = client.Reader.Read(client);
+
+                    if(message == null) {
+                        continue;
+                    }
 
                     if (Logging) {
                         Logger.Write("INFO", "New message " + Enum.GetName(typeof(TCPMessageCode), message.Code) + " from user: " + client.UID);

@@ -162,6 +162,11 @@ namespace MNetworkLib.TCP {
 
                     TCPMessage message = Reader.Read(Socket);
 
+                    if(message == null) {
+                        Running = false;
+                        continue;
+                    }
+
                     if (message.Code == TCPMessageCode.Init) {
                         if (Logging) {
                             Logger.Write("SUCCESS", "Successful handshake");

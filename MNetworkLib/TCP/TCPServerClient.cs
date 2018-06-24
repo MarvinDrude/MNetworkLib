@@ -43,6 +43,16 @@ namespace MNetworkLib.TCP {
         public TCPReader Reader { get; set; }
 
         /// <summary>
+        /// Whether or not the client did the handshake
+        /// </summary>
+        public bool DoneHandshake { get; set; } = false;
+
+        /// <summary>
+        /// Time the client connected before handshake
+        /// </summary>
+        public DateTime Joined { get; set; }
+
+        /// <summary>
         /// Default constructor
         /// </summary>
         /// <param name="socket"></param>
