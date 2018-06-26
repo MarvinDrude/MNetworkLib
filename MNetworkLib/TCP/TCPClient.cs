@@ -80,6 +80,16 @@ namespace MNetworkLib.TCP {
         public event HandshakeEventHandler OnHandshake;
 
         /// <summary>
+        /// Disconnected Event Handler
+        /// </summary>
+        public delegate void DisconnectedEventHandler();
+
+        /// <summary>
+        /// Disconnected Event, called if client was disconnected 
+        /// </summary>
+        public event DisconnectedEventHandler OnDisconnected;
+
+        /// <summary>
         /// Default constructor
         /// </summary>
         /// <param name="address"></param>
@@ -164,6 +174,7 @@ namespace MNetworkLib.TCP {
 
                     if(message == null) {
                         Running = false;
+                        OnDisconnected?.Invoke();
                         continue;
                     }
 
