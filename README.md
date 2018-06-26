@@ -43,3 +43,8 @@ class Program {
 
     }
 ```
+
+Example Logger Output:
+
+![Image not found](https://i.imgur.com/Cu1Zk44.png)
+
