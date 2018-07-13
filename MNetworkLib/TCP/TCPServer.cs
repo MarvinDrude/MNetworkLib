@@ -135,7 +135,7 @@ namespace MNetworkLib.TCP {
         public KickEventHandler OnKick;
 
         /// <summary>
-        /// Default constructor
+        /// Default constructor, default uses ipv4 address
         /// </summary>
         /// <param name="port"></param>
         /// <param name="ssl"></param>
@@ -153,7 +153,20 @@ namespace MNetworkLib.TCP {
             }
 
             if(address == null) {
-                Address = Dns.GetHostEntry(Dns.GetHostName()).AddressList[1];
+
+                var host = Dns.GetHostEntry(Dns.GetHostName());
+
+                foreach(IPAddress adr in host.AddressList) {
+                    if(adr.AddressFamily == AddressFamily.InterNetwork) {
+                        Address = adr;
+                        break;
+                    }
+                }
+
+                if(Address == null) {
+                    Address = host.AddressList[0];
+                }
+
             } else {
                 Address = address;
             }
