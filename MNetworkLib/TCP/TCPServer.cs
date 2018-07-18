@@ -5,6 +5,7 @@ using System.IO;
 using System.Net;
 using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -147,23 +148,23 @@ namespace MNetworkLib.TCP {
             SSL = ssl;
             Port = port;
 
-            if(Logging) {
+            if (Logging) {
                 Logger.Write("INIT", "Setting Port: " + Port);
                 Logger.Write("INIT", "Setting SSL: " + SSL);
             }
 
-            if(address == null) {
+            if (address == null) {
 
                 var host = Dns.GetHostEntry(Dns.GetHostName());
 
-                foreach(IPAddress adr in host.AddressList) {
-                    if(adr.AddressFamily == AddressFamily.InterNetwork) {
+                foreach (IPAddress adr in host.AddressList) {
+                    if (adr.AddressFamily == AddressFamily.InterNetwork) {
                         Address = adr;
                         break;
                     }
                 }
 
-                if(Address == null) {
+                if (Address == null) {
                     Address = host.AddressList[0];
                 }
 
@@ -171,18 +172,18 @@ namespace MNetworkLib.TCP {
                 Address = address;
             }
 
-            if(Logging) {
+            if (Logging) {
                 Logger.Write("INIT", "Using Address: " + Enum.GetName(typeof(AddressFamily), Address.AddressFamily) + "//" + Address.ToString());
             }
 
             Socket = new Socket(AddressFamily.InterNetworkV6, SocketType.Stream, ProtocolType.Tcp);
             Socket.SetSocketOption(SocketOptionLevel.IPv6, SocketOptionName.IPv6Only, false);
             Socket.Bind(new IPEndPoint(Address, Port));
-            
+
             Running = false;
-            ListenThread = new Thread(Listen);
+            ListenThread = new Thread(() => Listen());
             ManagementThread = new Thread(Management);
-            
+
         }
 
         /// <summary>
@@ -191,13 +192,13 @@ namespace MNetworkLib.TCP {
         /// <returns></returns>
         public bool Start() {
 
-            if(Logging) {
+            if (Logging) {
                 Logger.Write("REGION", "Method [Start]");
             }
 
-            if(!ListenThread.IsAlive && !Running) {
+            if (!ListenThread.IsAlive && !Running) {
 
-                if(Logging) {
+                if (Logging) {
                     Logger.Write("SUCCESS", "Starting server");
                 }
 
@@ -214,7 +215,7 @@ namespace MNetworkLib.TCP {
             }
 
             return false;
-            
+
         }
 
         /// <summary>
@@ -252,21 +253,21 @@ namespace MNetworkLib.TCP {
                 }
                 OnNoHandshake?.Invoke(client);
 
-            } else if(type == TCPDisconnectType.Disconnect) {
+            } else if (type == TCPDisconnectType.Disconnect) {
 
                 if (Logging) {
                     Logger.Write("INFO", "Client disconnect: " + client.UID);
                 }
                 OnDisconnected?.Invoke(client);
 
-            } else if(type == TCPDisconnectType.Timeout) {
+            } else if (type == TCPDisconnectType.Timeout) {
 
                 if (Logging) {
                     Logger.Write("INFO", "Client timeout: " + client.UID);
                 }
                 OnTimeout?.Invoke(client);
 
-            } else if(type == TCPDisconnectType.Kick) {
+            } else if (type == TCPDisconnectType.Kick) {
 
                 if (Logging) {
                     Logger.Write("INFO", "Client kick: " + client.UID);
@@ -278,9 +279,9 @@ namespace MNetworkLib.TCP {
             lock (ClientsDict) ClientsDict.Remove(client.UID);
             lock (ClientsList) {
 
-                for(int e = ClientsList.Count - 1; e >= 0; e--) {
+                for (int e = ClientsList.Count - 1; e >= 0; e--) {
 
-                    if(ClientsList[e].UID == client.UID) {
+                    if (ClientsList[e].UID == client.UID) {
                         if (Logging) {
                             Logger.Write("INFO", "Client found in ClientsList: " + client.UID);
                         }
@@ -297,7 +298,7 @@ namespace MNetworkLib.TCP {
                 client.Socket.Shutdown(SocketShutdown.Both);
                 client.Socket.Close();
 
-            } catch(Exception e) {
+            } catch (Exception e) {
 
                 if (Logging) {
                     Logger.Write("FAILED", "Socket shutdown/close", e);
@@ -312,7 +313,7 @@ namespace MNetworkLib.TCP {
         /// </summary>
         protected void Management() {
 
-            while(Running) {
+            while (Running) {
 
                 Thread.Sleep(ManagementSleep);
 
@@ -323,7 +324,7 @@ namespace MNetworkLib.TCP {
 
                             TCPServerClient c = ClientsList[e];
 
-                            if((DateTime.Now - c.Joined) > HandshakeTimeout
+                            if ((DateTime.Now - c.Joined) > HandshakeTimeout
                                 && RequireHandshake && !c.DoneHandshake) {
 
                                 RemoveClient(c, TCPDisconnectType.NoHandshake);
@@ -432,7 +433,8 @@ namespace MNetworkLib.TCP {
                     TCPMessage message = client.Reader.Read(client);
 
                     if(message == null) {
-                        continue;
+                        RemoveClient(client, TCPDisconnectType.Timeout);
+                        return;
                     }
 
                     if (Logging) {
