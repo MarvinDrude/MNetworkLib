@@ -30,6 +30,11 @@ namespace MNetworkLib.TCP {
         public IPAddress Address { get; protected set; }
 
         /// <summary>
+        /// Input IP Adress as string
+        /// </summary>
+        public string AddressString { get; protected set; }
+
+        /// <summary>
         /// Port to use
         /// </summary>
         public ushort Port { get; protected set; }

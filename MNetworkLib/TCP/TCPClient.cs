@@ -32,6 +32,11 @@ namespace MNetworkLib.TCP {
         public bool RequireHandshake { get; set; } = true;
 
         /// <summary>
+        /// Enabled raw communcation, only use if you know what you are doing
+        /// </summary>
+        public bool RawSocket { get; set; } = false;
+
+        /// <summary>
         /// Stream of the socket
         /// </summary>
         public Stream Stream { get; private set; }
@@ -56,6 +61,17 @@ namespace MNetworkLib.TCP {
         /// Message Event, called if the server sent a message
         /// </summary>
         public event MessageEventHandler OnMessage;
+
+        /// <summary>
+        /// Raw Message Event Handler
+        /// </summary>
+        /// <param name="data"></param>
+        public delegate void RawMessageEventHandler(byte[] data);
+
+        /// <summary>
+        /// Raw Message Event, called if the server sent a message but displayed as raw bytes
+        /// </summary>
+        public event RawMessageEventHandler OnRawMessage;
 
         /// <summary>
         /// Connected Event Handler
@@ -110,6 +126,7 @@ namespace MNetworkLib.TCP {
             }
 
             Address = adr;
+            AddressString = address;
             Port = port;
             SSL = ssl;
 

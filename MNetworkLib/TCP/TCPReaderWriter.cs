@@ -24,6 +24,20 @@ namespace MNetworkLib.TCP {
 
         }
 
+        public static void WriteNumber(Stream stream, long number, bool littleEndian) {
+
+            byte[] buffer = BitConverter.GetBytes(number);
+
+            if (BitConverter.IsLittleEndian && !littleEndian) {
+
+                Array.Reverse(buffer);
+
+            }
+
+            stream.Write(buffer, 0, buffer.Length);
+
+        }
+
         public static void WriteNumber(Stream stream, ulong number, bool littleEndian) {
 
             byte[] buffer = BitConverter.GetBytes(number);
